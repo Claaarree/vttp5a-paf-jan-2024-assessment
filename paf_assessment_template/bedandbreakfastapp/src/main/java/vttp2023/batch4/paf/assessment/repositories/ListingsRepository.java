@@ -1,11 +1,15 @@
 package vttp2023.batch4.paf.assessment.repositories;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
@@ -18,6 +22,8 @@ import vttp2023.batch4.paf.assessment.models.AccommodationSummary;
 public class ListingsRepository {
 	
 	// You may add additional dependency injections
+	@Autowired
+	private MongoTemplate mongoTemplate;
 
 	@Autowired
 	private MongoTemplate template;
@@ -26,11 +32,32 @@ public class ListingsRepository {
 	 * Write the native MongoDB query that you will be using for this method
 	 * inside this comment block
 	 * eg. db.bffs.find({ name: 'fred }) 
-	 *
+	 * 
+		db.listings.aggregate([
+			{$match: {'address.suburb': {$ne: ["", null]}}},
+			{$group: {_id: '$address.suburb'}}
+		])
 	 *
 	 */
 	public List<String> getSuburbs(String country) {
-		return null;
+		Criteria criteria = Criteria.where("address.suburb")
+				.ne("")
+				.andOperator(Criteria.where("address.suburb").ne(null));
+		MatchOperation suburbMatch = Aggregation.match(criteria);
+		GroupOperation groupBySuburb = Aggregation
+				.group("address.suburb");
+
+		Aggregation pipeline = Aggregation.newAggregation(suburbMatch, groupBySuburb);
+
+		List<Document> results = mongoTemplate.aggregate(pipeline, "listings", Document.class)
+				.getMappedResults();
+
+		List<String> suburbsList = new ArrayList<>();
+		for (Document d: results){
+			suburbsList.add(d.getString("_id"));
+		}
+
+		return suburbsList;
 	}
 
 	/*
