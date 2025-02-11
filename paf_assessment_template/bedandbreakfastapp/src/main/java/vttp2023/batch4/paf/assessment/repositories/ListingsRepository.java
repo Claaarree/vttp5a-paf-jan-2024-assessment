@@ -6,6 +6,8 @@ import java.util.Optional;
 
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
@@ -65,10 +67,42 @@ public class ListingsRepository {
 	 * inside this comment block
 	 * eg. db.bffs.find({ name: 'fred }) 
 	 *
+	 * db.listings.find(
+			{'address.suburb': {$regex: 'Darlinghurst', $options: 'i'},
+			price: {$lte: 250.00},
+			accommodates: {$gte: 1},
+			min_nights: {$lte: 2}
+			}
+		)
+		.projection({_id: 1, name: 1, accommodates: 1, price: 1})
+		.sort({price: -1})
 	 *
 	 */
 	public List<AccommodationSummary> findListings(String suburb, int persons, int duration, float priceRange) {
-		return null;
+		Criteria criteria = Criteria.where("address.suburb")
+				.regex(suburb, "i")
+				.andOperator(Criteria.where("price").lte(priceRange),
+					Criteria.where("accommodates").gte(persons), 
+					Criteria.where("min_nights").lte(duration));
+
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "accommodates", "price");
+		query.with(Sort.by(Direction.DESC, "price"));
+
+		List<Document> results = mongoTemplate.find(query, Document.class, "listings");
+
+		List<AccommodationSummary> resultsList = new ArrayList<>();
+		for (Document d: results){
+			AccommodationSummary as = new AccommodationSummary();
+			as.setId(d.getString("_id"));
+			as.setName(d.getString("name"));
+			as.setAccomodates(d.getInteger("accommodates"));
+			as.setPrice(d.get("price", Number.class).floatValue());
+			
+			resultsList.add(as);
+		}
+		
+		return resultsList;
 	}
 
 	// IMPORTANT: DO NOT MODIFY THIS METHOD UNLESS REQUESTED TO DO SO
